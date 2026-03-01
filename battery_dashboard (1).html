@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iTarang Battery Telemetry Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Exo+2:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #050a12;
+    --surface: #0c1420;
+    --surface2: #111c2e;
+    --border: #1a2d48;
+    --accent: #00d4ff;
+    --accent2: #00ff9d;
+    --warn: #ffb700;
+    --danger: #ff3b5c;
+    --text: #c8dff5;
+    --text-muted: #5a7a9a;
+    --glow: 0 0 20px rgba(0,212,255,0.25);
+  }
+
+  .light {
+    --bg: #f0f4f8;
+    --surface: #ffffff;
+    --surface2: #e8eef5;
+    --border: #c5d4e0;
+    --accent: #0077b6;
+    --accent2: #00a86b;
+    --warn: #d97706;
+    --danger: #dc2626;
+    --text: #1a2d3f;
+    --text-muted: #6b8caa;
+    --glow: 0 4px 16px rgba(0,119,182,0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    transition: background 0.3s, color 0.3s;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .light body::before { background-image: none; }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px 20px;
+  }
+
+  /* HEADER */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo-box {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700; font-size: 16px;
+    color: #050a12;
+    box-shadow: var(--glow);
+  }
+  .header-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(0,212,255,0.4);
+  }
+  .header-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .header-right { display: flex; gap: 10px; align-items: center; }
+
+  /* Buttons */
+  .btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Exo 2', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+  }
+  .btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 12px rgba(0,212,255,0.2);
+  }
+  .btn.active {
+    background: rgba(0,212,255,0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Upload area */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-bottom: 28px;
+    background: var(--surface);
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); box-shadow: var(--glow); }
+  .upload-icon { font-size: 48px; margin-bottom: 12px; }
+  .upload-title { font-family: 'Rajdhani', sans-serif; font-size: 20px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
+  .upload-sub { color: var(--text-muted); font-size: 13px; }
+  #fileInput { display: none; }
+
+  /* STATUS CARDS */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+    animation: fadeUp 0.4s ease both;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--glow); }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--card-color, var(--accent)), transparent);
+  }
+
+  .card.warn { --card-color: var(--warn); border-color: rgba(255,183,0,0.3); background: rgba(255,183,0,0.04); }
+  .card.danger { --card-color: var(--danger); border-color: rgba(255,59,92,0.3); background: rgba(255,59,92,0.04); animation: pulse 2s infinite; }
+  .card.good { --card-color: var(--accent2); }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,59,92,0.3); }
+    50% { box-shadow: 0 0 0 6px rgba(255,59,92,0); }
+  }
+
+  .card-icon { font-size: 22px; margin-bottom: 8px; }
+  .card-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+  .card-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--card-color, var(--text));
+    line-height: 1;
+  }
+  .card-unit { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+  .card-badge {
+    position: absolute;
+    top: 12px; right: 12px;
+    background: rgba(255,59,92,0.15);
+    border: 1px solid rgba(255,59,92,0.4);
+    color: var(--danger);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  /* PROGRESS BAR */
+  .progress-bar { height: 4px; background: var(--border); border-radius: 2px; margin-top: 10px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent2), var(--accent)); transition: width 0.8s ease; }
+
+  /* ALERTS */
+  .alerts-bar {
+    background: rgba(255,59,92,0.08);
+    border: 1px solid rgba(255,59,92,0.25);
+    border-radius: 10px;
+    padding: 10px 16px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--danger);
+    font-weight: 600;
+    animation: slideIn 0.3s ease;
+  }
+  .alerts-bar span { flex: 1; }
+  @keyframes slideIn { from { transform: translateY(-8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  /* CHARTS SECTION */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    animation: fadeUp 0.5s ease both;
+  }
+  .chart-card.wide { grid-column: span 2; }
+  .chart-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--accent);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  .chart-sub { font-size: 11px; color: var(--text-muted); margin-bottom: 16px; }
+  .chart-wrap { position: relative; }
+
+  /* INSIGHTS */
+  .insights-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .insight-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .insight-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); }
+  .insight-value { font-family: 'JetBrains Mono', monospace; font-size: 20px; color: var(--accent2); font-weight: 500; }
+  .insight-desc { font-size: 11px; color: var(--text-muted); }
+
+  /* TABLE */
+  .table-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 24px;
+    animation: fadeUp 0.6s ease both;
+  }
+  .table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .search-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-family: 'Exo 2', sans-serif;
+    font-size: 12px;
+    width: 200px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  thead th:hover { color: var(--accent); }
+  thead th.sort-asc::after { content: ' ↑'; color: var(--accent); }
+  thead th.sort-desc::after { content: ' ↓'; color: var(--accent); }
+  tbody tr {
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    transition: background 0.15s;
+  }
+  tbody tr:hover { background: var(--surface2); }
+  td {
+    padding: 9px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  td.null-val { color: var(--text-muted); font-style: italic; font-family: 'Exo 2', sans-serif; font-size: 11px; }
+  td.warn-val { color: var(--warn); font-weight: 600; }
+  td.danger-val { color: var(--danger); font-weight: 600; }
+  .pagination { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; flex-wrap: wrap; gap: 10px; }
+  .pagination-info { font-size: 11px; color: var(--text-muted); }
+  .page-btns { display: flex; gap: 6px; }
+  .page-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 30px; height: 30px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: 'Exo 2', sans-serif;
+    transition: all 0.2s;
+  }
+  .page-btn:hover, .page-btn.active { border-color: var(--accent); color: var(--accent); }
+
+  /* FOOTER */
+  .footer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 16px 0;
+    border-top: 1px solid var(--border);
+    letter-spacing: 0.5px;
+  }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* SECTION LABEL */
+  .section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* Loading */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: var(--text-muted);
+    flex-direction: column;
+    gap: 16px;
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* STATUS DOT */
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent2);
+    box-shadow: 0 0 8px var(--accent2);
+    animation: blink 2s infinite;
+    display: inline-block;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    .charts-grid { grid-template-columns: 1fr; }
+    .chart-card.wide { grid-column: span 1; }
+    .cards-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .cards-grid { grid-template-columns: 1fr; }
+    .header { flex-direction: column; align-items: flex-start; }
+  }
+
+  .hidden { display: none !important; }
+
+  /* range info bar */
+  .info-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+  }
+  .info-bar span b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-box">⚡</div>
+      <div>
+        <div class="header-title">ITARANG BATTERY MONITOR</div>
+        <div class="header-sub"><span class="status-dot"></span> Telemetry Dashboard &nbsp;·&nbsp; E-Rickshaw Fleet</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn" id="themeToggle" onclick="toggleTheme()">☀ Light</button>
+      <button class="btn" onclick="document.getElementById('fileInput').click()">📂 Load JSON</button>
+      <button class="btn" onclick="loadDemo()">🔋 Demo Data</button>
+      <input type="file" id="fileInput" accept=".json" onchange="loadFile(event)">
+    </div>
+  </div>
+
+  <!-- UPLOAD ZONE (shown initially) -->
+  <div class="upload-zone" id="uploadZone"
+    ondragover="event.preventDefault(); this.classList.add('drag')"
+    ondragleave="this.classList.remove('drag')"
+    ondrop="handleDrop(event)"
+    onclick="document.getElementById('fileInput').click()">
+    <div class="upload-icon">⚡</div>
+    <div class="upload-title">Drop Battery Telemetry JSON Here</div>
+    <div class="upload-sub">or click to browse &nbsp;·&nbsp; or use "Demo Data" to try sample data</div>
+  </div>
+
+  <!-- DASHBOARD (hidden until data loaded) -->
+  <div id="dashboard" class="hidden">
+
+    <!-- ALERT BAR -->
+    <div class="alerts-bar hidden" id="alertBar">
+      <span>⚠</span>
+      <span id="alertText"></span>
+    </div>
+
+    <!-- INFO BAR -->
+    <div class="info-bar" id="infoBar"></div>
+
+    <!-- STATUS CARDS -->
+    <div class="section-label">📊 Latest Status</div>
+    <div class="cards-grid" id="cardsGrid"></div>
+
+    <!-- COMPUTED INSIGHTS -->
+    <div class="section-label">💡 Computed Insights</div>
+    <div class="insights-grid" id="insightsGrid"></div>
+
+    <!-- CHARTS -->
+    <div class="section-label">📈 Time-Series Analysis</div>
+    <div class="charts-grid">
+      <div class="chart-card wide">
+        <div class="chart-title">State of Charge (SoC) Over Time</div>
+        <div class="chart-sub">Battery charge level percentage — alerts shown for values below 20%</div>
+        <div class="chart-wrap"><canvas id="socChart" height="80"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Battery Voltage</div>
+        <div class="chart-sub">Voltage trend in Volts (V)</div>
+        <div class="chart-wrap"><canvas id="voltChart" height="100"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Current Draw</div>
+        <div class="chart-sub">Amperes (A) — positive = discharging</div>
+        <div class="chart-wrap"><canvas id="currentChart" height="100"></canvas></div>
+      </div>
+      <div class="chart-card wide">
+        <div class="chart-title">Temperature Over Time</div>
+        <div class="chart-sub">Battery temperature (°C) — null values shown as gaps; alert above 45°C</div>
+        <div class="chart-wrap"><canvas id="tempChart" height="60"></canvas></div>
+      </div>
+    </div>
+
+    <!-- DATA TABLE -->
+    <div class="table-section">
+      <div class="table-header">
+        <div>
+          <div class="chart-title">Telemetry Log</div>
+          <div class="chart-sub">Sortable raw data · <span id="rowCount"></span></div>
+        </div>
+        <input class="search-box" type="text" id="tableSearch" placeholder="🔍  Filter table..." oninput="renderTable()">
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr id="tableHead"></tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <div class="pagination-info" id="pageInfo"></div>
+        <div class="page-btns" id="pageBtns"></div>
+      </div>
+    </div>
+
+    <div class="footer">iTarang Technologies &nbsp;·&nbsp; Battery Telemetry Dashboard &nbsp;·&nbsp; Powering India's E-Mobility Revolution</div>
+  </div>
+
+</div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let rawData = [];
+let sortCol = 'time';
+let sortDir = 'desc';
+let page = 1;
+const PAGE_SIZE = 15;
+let charts = {};
+let isDark = true;
+
+// ─── DEMO DATA GEN ────────────────────────────────────────────────────────────
+function generateDemo() {
+  const data = [];
+  let soc = 85, soh = 98, volt = 54.5, temp = 32, cycle = 3;
+  const base = Date.now() - 2 * 60 * 60 * 1000; // 2 hours ago
+  for (let i = 0; i < 240; i++) {
+    const t = base + i * 30000; // every 30s
+    soc = Math.max(5, soc - (Math.random() * 0.6 - 0.05));
+    volt = 48 + (soc / 100) * 8 + (Math.random() - 0.5) * 0.3;
+    temp = i < 100 ? 32 + Math.random() * 4 : (i < 150 ? null : 38 + Math.random() * 3);
+    const current = soc < 15 ? 0 : (1.5 + Math.random() * 2);
+    if (i % 60 === 0 && soc < 20) cycle++;
+    data.push({
+      time: t,
+      soc: Math.round(soc),
+      soh: soh,
+      battery_voltage: parseFloat(volt.toFixed(2)),
+      current: parseFloat(current.toFixed(2)),
+      charge_cycle: cycle,
+      battery_temp: temp !== null ? parseFloat(temp.toFixed(1)) : null
+    });
+  }
+  return data;
+}
+
+function loadDemo() {
+  processData(generateDemo().map(normalizeRow));
+}
+
+function loadFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const json = JSON.parse(e.target.result);
+      // Unwrap common envelope shapes
+      let arr;
+      if (Array.isArray(json) && json[0]?.json?.data) {
+        arr = json[0].json.data;
+      } else if (Array.isArray(json) && json[0]?.data && Array.isArray(json[0].data)) {
+        arr = json[0].data;
+      } else {
+        arr = Array.isArray(json) ? json
+          : Array.isArray(json.data) ? json.data
+          : Array.isArray(json.json?.data) ? json.json.data
+          : Array.isArray(json.records) ? json.records
+          : Array.isArray(json.telemetry) ? json.telemetry
+          : Array.isArray(json.results) ? json.results
+          : [json];
+      }
+
+      // If each element is still a wrapper object (not a telemetry record),
+      // try to unwrap one more level
+      if (arr.length > 0 && typeof arr[0] === 'object') {
+        const first = arr[0];
+        const keys = Object.keys(first);
+        // If it doesn't look like a telemetry record, try to find the array inside
+        const hasTelemetryFields = ['soc','soh','time','battery_voltage','voltage','current'].some(k =>
+          keys.some(rk => rk.toLowerCase() === k.toLowerCase())
+        );
+        if (!hasTelemetryFields) {
+          // Try one more level: each item might be { json: { data: [...] } } or { data: [...] }
+          const deeper = [];
+          for (const item of arr) {
+            if (item?.json?.data && Array.isArray(item.json.data)) deeper.push(...item.json.data);
+            else if (item?.data && Array.isArray(item.data)) deeper.push(...item.data);
+            else if (Array.isArray(item)) deeper.push(...item);
+          }
+          if (deeper.length > 0) arr = deeper;
+        }
+      }
+
+      // Normalize field names
+      arr = arr.map(row => normalizeRow(row));
+
+      // Downsample if too large (keep max 5000 for performance)
+      if (arr.length > 5000) {
+        const step = Math.floor(arr.length / 5000);
+        arr = arr.filter((_, i) => i % step === 0);
+        console.log(`Downsampled to ${arr.length} records for performance`);
+      }
+
+      console.log('First record after normalization:', JSON.stringify(arr[0]));
+      console.log('Total records:', arr.length);
+
+      if (!arr.length || arr[0].soc === undefined) {
+        // Show what fields we found to help debug
+        const keys = Object.keys(arr[0] || {}).join(', ');
+        alert(`Could not map fields automatically.\n\nFields found in your JSON:\n${keys}\n\nCheck the console (F12) for details.`);
+        return;
+      }
+      processData(arr);
+    } catch(err) {
+      alert('Invalid JSON file: ' + err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function handleDrop(event) {
+  event.preventDefault();
+  document.getElementById('uploadZone').classList.remove('drag');
+  const file = event.dataTransfer.files[0];
+  if (file) loadFile({ target: { files: [file] } });
+}
+
+// ─── FIELD NORMALIZER ────────────────────────────────────────────────────────
+function normalizeRow(row) {
+  const find = (...keys) => {
+    for (const k of keys) {
+      if (row[k] !== undefined) return row[k];
+      const found = Object.keys(row).find(rk => rk.toLowerCase() === k.toLowerCase());
+      if (found !== undefined && row[found] !== undefined) return row[found];
+    }
+    return undefined;
+  };
+  return {
+    time:            find('time','timestamp','ts','datetime','created_at','date'),
+    soc:             find('soc','state_of_charge','stateOfCharge','charge','battery_soc','SOC'),
+    soh:             find('soh','state_of_health','stateOfHealth','health','battery_soh','SOH'),
+    battery_voltage: find('battery_voltage','voltage','volt','batteryVoltage','batt_voltage','v'),
+    current:         find('current','current_draw','currentDraw','amps','ampere','amp'),
+    charge_cycle:    find('charge_cycle','chargeCycle','cycle','cycles','cycle_count','cycleCount'),
+    battery_temp:    find('battery_temp','temperature','temp','batteryTemp','batt_temp','celsius'),
+  };
+}
+
+// ─── MAIN PROCESS ─────────────────────────────────────────────────────────────
+function processData(data) {
+  // Safe sort that won't stack overflow
+  rawData = [...data].sort((a, b) => (a.time || 0) - (b.time || 0));
+  document.getElementById('uploadZone').classList.add('hidden');
+  document.getElementById('dashboard').classList.remove('hidden');
+
+  renderInfoBar();
+  renderCards();
+  renderInsights();
+  renderCharts();
+  renderTable();
+}
+
+// ─── INFO BAR ─────────────────────────────────────────────────────────────────
+function renderInfoBar() {
+  const latest = rawData[rawData.length - 1];
+  const oldest = rawData[0];
+  const dur = ((latest.time - oldest.time) / 1000 / 60).toFixed(0);
+  document.getElementById('infoBar').innerHTML = `
+    <span>🔋 Battery Unit: <b>BT-${Math.abs(Math.round(latest.charge_cycle * 17 + 1042)).toString().padStart(4,'0')}</b></span>
+    <span>📅 First Record: <b>${fmtTime(oldest.time)}</b></span>
+    <span>🕐 Latest: <b>${fmtTime(latest.time)}</b></span>
+    <span>⏱ Duration: <b>${dur} min</b></span>
+    <span>📊 Records: <b>${rawData.length}</b></span>
+  `;
+}
+
+// ─── STATUS CARDS ─────────────────────────────────────────────────────────────
+function renderCards() {
+  const d = rawData[rawData.length - 1];
+  const cards = [
+    {
+      icon: '🔋', label: 'State of Charge', key: 'soc', unit: '%',
+      value: d.soc,
+      cls: d.soc < 20 ? 'danger' : d.soc < 40 ? 'warn' : 'good',
+      badge: d.soc < 20 ? 'CRITICAL' : d.soc < 40 ? 'LOW' : null,
+      bar: d.soc
+    },
+    {
+      icon: '🛡', label: 'State of Health', key: 'soh', unit: '%',
+      value: d.soh,
+      cls: d.soh < 60 ? 'danger' : d.soh < 80 ? 'warn' : 'good',
+      badge: d.soh < 60 ? 'DEGRADED' : null,
+      bar: d.soh
+    },
+    {
+      icon: '⚡', label: 'Battery Voltage', key: 'battery_voltage', unit: 'V',
+      value: d.battery_voltage?.toFixed(2) ?? 'N/A',
+      cls: ''
+    },
+    {
+      icon: '🔌', label: 'Current Draw', key: 'current', unit: 'A',
+      value: d.current?.toFixed(2) ?? 'N/A',
+      cls: d.current > 10 ? 'warn' : ''
+    },
+    {
+      icon: '🌡', label: 'Temperature', key: 'battery_temp', unit: '°C',
+      value: d.battery_temp !== null && d.battery_temp !== undefined ? d.battery_temp.toFixed(1) : null,
+      display: d.battery_temp !== null && d.battery_temp !== undefined ? d.battery_temp.toFixed(1) : '—',
+      nullNote: d.battery_temp === null ? 'Sensor offline' : null,
+      cls: d.battery_temp !== null && d.battery_temp > 45 ? 'danger' : d.battery_temp !== null && d.battery_temp > 40 ? 'warn' : ''
+    },
+    {
+      icon: '🔄', label: 'Charge Cycles', key: 'charge_cycle', unit: 'cycles',
+      value: d.charge_cycle,
+      cls: d.charge_cycle > 800 ? 'warn' : ''
+    },
+  ];
+
+  const html = cards.map(c => `
+    <div class="card ${c.cls}" style="animation-delay:${cards.indexOf(c)*60}ms">
+      ${c.badge ? `<div class="card-badge">${c.badge}</div>` : ''}
+      <div class="card-icon">${c.icon}</div>
+      <div class="card-label">${c.label}</div>
+      <div class="card-value ${c.nullNote ? 'null-val' : ''}" style="font-size:${c.nullNote?'14px':'28px'}">
+        ${c.nullNote ? c.nullNote : (c.display ?? c.value)}
+      </div>
+      <div class="card-unit">${c.nullNote ? '' : c.unit}</div>
+      ${c.bar !== undefined ? `<div class="progress-bar"><div class="progress-fill" style="width:${c.bar}%; background: ${c.bar<20?'var(--danger)':c.bar<40?'var(--warn)':'linear-gradient(90deg, var(--accent2), var(--accent))'}"></div></div>` : ''}
+    </div>
+  `).join('');
+  document.getElementById('cardsGrid').innerHTML = html;
+
+  // Alerts
+  const alerts = [];
+  if (d.soc < 20) alerts.push(`Low battery SoC: ${d.soc}% (below 20% threshold)`);
+  if (d.battery_temp !== null && d.battery_temp > 45) alerts.push(`High temperature: ${d.battery_temp}°C (above 45°C threshold)`);
+  const bar = document.getElementById('alertBar');
+  if (alerts.length) {
+    bar.classList.remove('hidden');
+    document.getElementById('alertText').textContent = alerts.join('  ·  ');
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+// ─── INSIGHTS ─────────────────────────────────────────────────────────────────
+function renderInsights() {
+  const socs = rawData.map(d => d.soc);
+  const volts = rawData.map(d => d.battery_voltage);
+  const temps = rawData.filter(d => d.battery_temp !== null).map(d => d.battery_temp);
+  const currents = rawData.map(d => d.current);
+  const discharging = rawData.filter(d => d.current > 0).length;
+  const idle = rawData.length - discharging;
+
+  const avg = arr => arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : 'N/A';
+  const max = arr => arr.length ? Math.max(...arr).toFixed(2) : 'N/A';
+  const min = arr => arr.length ? Math.min(...arr).toFixed(1) : 'N/A';
+
+  const insights = [
+    { label: 'Avg State of Charge', value: avg(socs)+'%', desc: `Min: ${min(socs)}% · Max: ${Math.max(...socs)}%` },
+    { label: 'Peak Voltage', value: max(volts)+' V', desc: `Min voltage: ${min(volts)} V` },
+    { label: 'Avg Temperature', value: temps.length ? avg(temps)+'°C' : 'No Data', desc: temps.length ? `${temps.filter(t=>t>45).length} readings above 45°C` : 'Sensor offline' },
+    { label: 'Time Discharging', value: Math.round(discharging/(rawData.length)*100)+'%', desc: `${discharging} of ${rawData.length} readings` },
+    { label: 'Time Idle', value: Math.round(idle/(rawData.length)*100)+'%', desc: `${idle} readings at 0 A` },
+    { label: 'Avg Current Draw', value: avg(currents)+' A', desc: `Peak: ${max(currents)} A` },
+  ];
+
+  document.getElementById('insightsGrid').innerHTML = insights.map(i => `
+    <div class="insight-card">
+      <div class="insight-label">${i.label}</div>
+      <div class="insight-value">${i.value}</div>
+      <div class="insight-desc">${i.desc}</div>
+    </div>
+  `).join('');
+}
+
+// ─── CHARTS ──────────────────────────────────────────────────────────────────
+function getChartDefaults() {
+  return {
+    grid: { color: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)' },
+    tick: isDark ? '#5a7a9a' : '#6b8caa',
+    tooltip: { bg: isDark ? '#0c1420' : '#fff', border: isDark ? '#1a2d48' : '#c5d4e0', text: isDark ? '#c8dff5' : '#1a2d3f' }
+  };
+}
+
+function destroyCharts() {
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+}
+
+function renderCharts() {
+  destroyCharts();
+  const labels = rawData.map(d => fmtTimeShort(d.time));
+  const step = Math.ceil(labels.length / 60);
+  const sampledLabels = labels.filter((_,i) => i % step === 0);
+  const sample = (arr) => arr.filter((_,i) => i % step === 0);
+  const def = getChartDefaults();
+
+  const baseOpts = (yLabel, min, max) => ({
+    responsive: true,
+    animation: { duration: 600 },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: def.tooltip.bg,
+        borderColor: def.tooltip.border,
+        borderWidth: 1,
+        titleColor: def.tooltip.text,
+        bodyColor: def.tooltip.text,
+        padding: 10,
+      }
+    },
+    scales: {
+      x: { ticks: { color: def.tick, font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 8 }, grid: { color: def.grid.color } },
+      y: { title: { display: true, text: yLabel, color: def.tick, font: { size: 10 } }, ticks: { color: def.tick, font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: def.grid.color }, ...(min!==undefined?{min,max}:{}) }
+    }
+  });
+
+  // SoC
+  const socData = sample(rawData.map(d => d.soc));
+  charts.soc = new Chart(document.getElementById('socChart'), {
+    type: 'line',
+    data: {
+      labels: sampledLabels,
+      datasets: [{
+        data: socData,
+        borderColor: socData.map(v => v < 20 ? '#ff3b5c' : v < 40 ? '#ffb700' : '#00d4ff'),
+        segment: {
+          borderColor: ctx => {
+            const v = ctx.p0.parsed.y;
+            return v < 20 ? '#ff3b5c' : v < 40 ? '#ffb700' : '#00d4ff';
+          }
+        },
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        fill: true,
+        backgroundColor: ctx => {
+          const chart = ctx.chart;
+          const {ctx: c, chartArea} = chart;
+          if (!chartArea) return 'transparent';
+          const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          g.addColorStop(0, 'rgba(0,212,255,0.2)');
+          g.addColorStop(1, 'rgba(0,212,255,0)');
+          return g;
+        },
+        tension: 0.3
+      }]
+    },
+    options: baseOpts('SoC (%)', 0, 100)
+  });
+
+  // Voltage
+  charts.volt = new Chart(document.getElementById('voltChart'), {
+    type: 'line',
+    data: {
+      labels: sampledLabels,
+      datasets: [{ data: sample(rawData.map(d=>d.battery_voltage)), borderColor:'#00ff9d', borderWidth:2, pointRadius:0, tension:0.3, fill:false }]
+    },
+    options: baseOpts('Voltage (V)')
+  });
+
+  // Current
+  charts.curr = new Chart(document.getElementById('currentChart'), {
+    type: 'bar',
+    data: {
+      labels: sampledLabels,
+      datasets: [{ data: sample(rawData.map(d=>d.current)), backgroundColor:'rgba(0,212,255,0.5)', borderColor:'rgba(0,212,255,0.8)', borderWidth:1 }]
+    },
+    options: { ...baseOpts('Current (A)'), plugins: { ...baseOpts('').plugins } }
+  });
+
+  // Temp (null as gap)
+  const tempData = sample(rawData.map(d => d.battery_temp));
+  charts.temp = new Chart(document.getElementById('tempChart'), {
+    type: 'line',
+    data: {
+      labels: sampledLabels,
+      datasets: [{
+        data: tempData,
+        borderColor: '#ffb700',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.3,
+        fill: false,
+        spanGaps: false // null = gap
+      }, {
+        data: sampledLabels.map(() => 45),
+        borderColor: 'rgba(255,59,92,0.4)',
+        borderDash: [4,4],
+        borderWidth: 1,
+        pointRadius: 0,
+        fill: false,
+        label: 'Alert threshold (45°C)'
+      }]
+    },
+    options: { ...baseOpts('Temp (°C)'), plugins: { legend: { display: true, labels: { color: def.tick, font: { size: 10 } } }, tooltip: baseOpts('').plugins.tooltip } }
+  });
+}
+
+// ─── TABLE ────────────────────────────────────────────────────────────────────
+const COLS = [
+  { key:'time', label:'Timestamp', fmt: v => fmtTime(v) },
+  { key:'soc', label:'SoC %', fmt: v => v, cls: v => v<20?'danger-val':v<40?'warn-val':'' },
+  { key:'soh', label:'SoH %', fmt: v => v },
+  { key:'battery_voltage', label:'Voltage (V)', fmt: v => v?.toFixed(2) },
+  { key:'current', label:'Current (A)', fmt: v => v?.toFixed(2) },
+  { key:'charge_cycle', label:'Cycle #', fmt: v => v },
+  { key:'battery_temp', label:'Temp (°C)', fmt: v => v !== null && v !== undefined ? v.toFixed(1) : null, cls: v => v!==null&&v>45?'danger-val':v!==null&&v>40?'warn-val':'' }
+];
+
+function renderTable() {
+  // Header
+  const thead = document.getElementById('tableHead');
+  thead.innerHTML = COLS.map(c => `
+    <th onclick="sortTable('${c.key}')" class="${sortCol===c.key?(sortDir==='asc'?'sort-asc':'sort-desc'):''}">${c.label}</th>
+  `).join('');
+
+  // Filter
+  const q = document.getElementById('tableSearch').value.toLowerCase();
+  let filtered = rawData.filter(row => {
+    if (!q) return true;
+    return COLS.some(c => {
+      const val = row[c.key];
+      return val !== null && val !== undefined && String(val).toLowerCase().includes(q);
+    });
+  });
+
+  // Sort
+  filtered.sort((a,b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if (va === null) va = -Infinity;
+    if (vb === null) vb = -Infinity;
+    return sortDir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+  });
+
+  document.getElementById('rowCount').textContent = `${filtered.length} records`;
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  page = Math.min(page, totalPages || 1);
+  const slice = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = slice.map(row => `
+    <tr>${COLS.map(c => {
+      const val = row[c.key];
+      const fmt = c.fmt(val);
+      const cls = c.cls ? c.cls(val) : '';
+      return fmt === null || fmt === undefined
+        ? `<td class="null-val">Sensor offline</td>`
+        : `<td class="${cls}">${fmt}</td>`;
+    }).join('')}</tr>
+  `).join('');
+
+  // Pagination
+  document.getElementById('pageInfo').textContent = `Page ${page} of ${totalPages} · ${filtered.length} records`;
+  const pageBtns = document.getElementById('pageBtns');
+  let btns = '';
+  if (page > 1) btns += `<button class="page-btn" onclick="goPage(${page-1})">‹</button>`;
+  for (let p = Math.max(1, page-2); p <= Math.min(totalPages, page+2); p++) {
+    btns += `<button class="page-btn${p===page?' active':''}" onclick="goPage(${p})">${p}</button>`;
+  }
+  if (page < totalPages) btns += `<button class="page-btn" onclick="goPage(${page+1})">›</button>`;
+  pageBtns.innerHTML = btns;
+}
+
+function sortTable(col) {
+  if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  else { sortCol = col; sortDir = 'desc'; }
+  renderTable();
+}
+
+function goPage(p) { page = p; renderTable(); }
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function fmtTime(ts) {
+  return new Date(ts).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+function fmtTimeShort(ts) {
+  return new Date(ts).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+}
+
+// ─── THEME ────────────────────────────────────────────────────────────────────
+function toggleTheme() {
+  isDark = !isDark;
+  document.body.classList.toggle('light', !isDark);
+  document.getElementById('themeToggle').textContent = isDark ? '☀ Light' : '🌙 Dark';
+  if (rawData.length) renderCharts();
+}
+</script>
+</body>
+</html>
